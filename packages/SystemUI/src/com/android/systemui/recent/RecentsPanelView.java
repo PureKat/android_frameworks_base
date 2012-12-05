@@ -508,7 +508,8 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
         if (mRecentsScrim != null) {
             Display d = ((WindowManager)mContext.getSystemService(Context.WINDOW_SERVICE))
                 .getDefaultDisplay();
-            mHighEndGfx = ActivityManager.isHighEndGfx(d);
+            if (!mHighEndGfx)
+                mHighEndGfx = ActivityManager.isHighEndGfx(d);
             if (!mHighEndGfx) {
                 mRecentsScrim.setBackground(null);
             } else if (mRecentsScrim.getBackground() instanceof BitmapDrawable) {
