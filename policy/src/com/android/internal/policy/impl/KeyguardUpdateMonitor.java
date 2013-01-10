@@ -22,6 +22,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.ContentObserver;
+import static android.os.BatteryManager.BATTERY_STATUS_CHARGING;
+import static android.os.BatteryManager.BATTERY_STATUS_DISCHARGING;
 import static android.os.BatteryManager.BATTERY_STATUS_FULL;
 import static android.os.BatteryManager.BATTERY_STATUS_UNKNOWN;
 import static android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN;
@@ -389,7 +391,7 @@ public class KeyguardUpdateMonitor {
             for (int i = 0; i < mInfoCallbacks.size(); i++) {
                 // TODO: pass BatteryStatus object to onRefreshBatteryInfo() instead...
                 mInfoCallbacks.get(i).onRefreshBatteryInfo(
-                    shouldShowBatteryInfo(),isPluggedIn(batteryStatus), batteryStatus.level);
+                    shouldShowBatteryInfo(),isCharging(batteryStatus), batteryStatus.level);
             }
         }
     }
@@ -440,6 +442,10 @@ public class KeyguardUpdateMonitor {
     private static boolean isPluggedIn(BatteryStatus status) {
         return status.plugged == BatteryManager.BATTERY_PLUGGED_AC
                 || status.plugged == BatteryManager.BATTERY_PLUGGED_USB;
+    }
+
+    private static boolean isCharging(BatteryStatus status) {
+        return status.status == BatteryManager.BATTERY_STATUS_CHARGING;
     }
 
     private static boolean isBatteryUpdateInteresting(BatteryStatus old, BatteryStatus current, Context context) {
@@ -618,7 +624,7 @@ public class KeyguardUpdateMonitor {
         if (!mInfoCallbacks.contains(callback)) {
             mInfoCallbacks.add(callback);
             // Notify listener of the current state
-            callback.onRefreshBatteryInfo(shouldShowBatteryInfo(),isPluggedIn(mBatteryStatus),
+            callback.onRefreshBatteryInfo(shouldShowBatteryInfo(),isCharging(mBatteryStatus),
                     mBatteryStatus.level);
             callback.onTimeChanged();
             callback.onRingerModeChanged(mRingMode);
@@ -685,8 +691,10 @@ public class KeyguardUpdateMonitor {
     }
 
     public boolean shouldShowBatteryInfo() {
-        return isPluggedIn(mBatteryStatus) || isBatteryLow(mBatteryStatus)
-                       || shouldAlwaysShowBatteryInfo(mContext);
+        return (isPluggedIn(mBatteryStatus) && isDeviceCharged())
+            || isCharging(mBatteryStatus)
+            || isBatteryLow(mBatteryStatus)
+            || shouldAlwaysShowBatteryInfo(mContext);
     }
 
     public static boolean shouldAlwaysShowBatteryInfo(Context context) {
