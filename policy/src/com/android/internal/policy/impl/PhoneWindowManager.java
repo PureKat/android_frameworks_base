@@ -177,6 +177,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final int KEY_ACTION_SEARCH = 3;
     private static final int KEY_ACTION_VOICE_SEARCH = 4;
     private static final int KEY_ACTION_IN_APP_SEARCH = 5;
+    private static final int KEY_ACTION_LAUNCH_CAMERA = 6;
 
     // Masks for checking presence of hardware keys.
     // Must match values in core/res/res/values/config.xml
@@ -185,6 +186,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final int KEY_MASK_MENU = 0x04;
     private static final int KEY_MASK_ASSIST = 0x08;
     private static final int KEY_MASK_APP_SWITCH = 0x10;
+    private static final int KEY_MASK_CAMERA = 0x20;
 
     /**
      * These are the system UI flags that, when changing, can cause the layout
@@ -983,6 +985,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             case KEY_ACTION_IN_APP_SEARCH:
                 triggerVirtualKeypress(KeyEvent.KEYCODE_SEARCH);
                 break;
+            case KEY_ACTION_LAUNCH_CAMERA:
+                triggerVirtualKeypress(KeyEvent.KEYCODE_CAMERA);
+                break;
             default:
                 break;
         }
@@ -1175,6 +1180,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         final boolean hasHome = (mDeviceHardwareKeys & KEY_MASK_HOME) != 0;
         final boolean hasAssist = (mDeviceHardwareKeys & KEY_MASK_ASSIST) != 0;
         final boolean hasAppSwitch = (mDeviceHardwareKeys & KEY_MASK_APP_SWITCH) != 0;
+        final boolean hasCamera = (mDeviceHardwareKeys & KEY_MASK_CAMERA) != 0;
         final ContentResolver resolver = mContext.getContentResolver();
 
         // initialize all assignments to sane defaults
@@ -2282,18 +2288,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             mHandler.removeCallbacks(mBackLongPress);
         }
 
-        // Specific device key handling
-        if (mDeviceKeyHandler != null) {
-            try {
-                // The device only should consume known keys.
-                if (mDeviceKeyHandler.handleKeyEvent(event)) {
-                    return -1;
-                }
-            } catch (Exception e) {
-                Slog.w(TAG, "Could not dispatch event to device key handler", e);
-            }
-        }
-
         // First we always handle the home key here, so applications
         // can never break it, although if keyguard is on, we do let
         // it handle it, because that gives us the correct 5 second
@@ -2391,6 +2385,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             } else if (longPress) {
                 if (!keyguardOn && !mHomeConsumed &&
                         mLongPressOnHomeBehavior != KEY_ACTION_NOTHING) {
+                    mHomePressed = true;
                     if (mLongPressOnHomeBehavior != KEY_ACTION_APP_SWITCH) {
                         cancelPreloadRecentApps();
                     }
@@ -4196,6 +4191,18 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         // key processing.
         if (mGlobalKeyManager.shouldHandleGlobalKey(keyCode, event)) {
             return result;
+        }
+
+        // Specific device key handling
+        if (mDeviceKeyHandler != null) {
+            try {
+                // The device only should consume known keys.
+                if (mDeviceKeyHandler.handleKeyEvent(event)) {
+                    return 0;
+                }
+            } catch (Exception e) {
+                Slog.w(TAG, "Could not dispatch event to device key handler", e);
+            }
         }
 
         // Handle special keys.
