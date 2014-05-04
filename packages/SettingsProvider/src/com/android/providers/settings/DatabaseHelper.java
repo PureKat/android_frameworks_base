@@ -25,6 +25,7 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.IPackageManager;
 import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.res.XmlResourceParser;
 import android.database.Cursor;
 import android.database.SQLException;
@@ -78,7 +79,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     // database gets upgraded properly. At a minimum, please confirm that 'upgradeVersion'
     // is properly propagated through your change.  Not doing so will result in a loss of user
     // settings.
-    private static final int DATABASE_VERSION = 98;
+    private static final int DATABASE_VERSION = 101;
 
     private Context mContext;
     private int mUserHandle;
@@ -1609,6 +1610,35 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             upgradeVersion = 98;
         }
 
+        if (upgradeVersion == 98) {
+            if (mUserHandle == UserHandle.USER_OWNER) {
+                loadQuickBootSetting(db);
+            }
+            upgradeVersion = 99;
+        }
+
+        if (upgradeVersion == 99) {
+            if (mUserHandle == UserHandle.USER_OWNER) {
+                loadScreenAnimationStyle(db);
+            }
+            upgradeVersion = 100;
+        }
+
+        if (upgradeVersion == 100) {
+            // We're setting some new defaults on these for certain devices, and adding
+            // a default for animator duration. Load them if the user hasn't set them.
+            db.beginTransaction();
+            SQLiteStatement stmt = null;
+            try {
+                stmt = db.compileStatement("INSERT OR IGNORE INTO system(name,value) VALUES(?,?);");
+                loadDefaultAnimationSettings(stmt);
+                    db.setTransactionSuccessful();
+            } finally {
+                db.endTransaction();
+            }
+            upgradeVersion = 101;
+        }
+
         // *** Remember to update DATABASE_VERSION above!
 
         if (upgradeVersion != currentVersion) {
@@ -2014,6 +2044,35 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         }
     }
 
+    private void loadQuickBootSetting(SQLiteDatabase db) {
+        db.beginTransaction();
+        SQLiteStatement stmt = null;
+        try {
+            stmt = db.compileStatement("INSERT OR REPLACE INTO global(name,value)"
+                    + " VALUES(?,?);");
+            loadSetting(stmt, Settings.Global.ENABLE_QUICKBOOT, 0);
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+            if (stmt != null) stmt.close();
+        }
+    }
+
+    private void loadScreenAnimationStyle(SQLiteDatabase db) {
+        db.beginTransaction();
+        SQLiteStatement stmt = null;
+        try {
+            stmt = db.compileStatement("INSERT OR REPLACE INTO system(name,value)"
+                    + " VALUES(?,?);");
+            loadIntegerSetting(stmt, Settings.System.SCREEN_ANIMATION_STYLE,
+                    R.integer.def_screen_animation_style);
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+            if (stmt != null) stmt.close();
+        }
+    }
+
     private void loadSettings(SQLiteDatabase db) {
         loadSystemSettings(db);
         loadSecureSettings(db);
@@ -2044,7 +2103,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             loadSetting(stmt, Settings.System.TTY_MODE, 0);
 
             // Set default noise suppression value
-            loadSetting(stmt, Settings.System.NOISE_SUPPRESSION, 0);
+            loadBooleanSetting(stmt, Settings.System.NOISE_SUPPRESSION,
+                    R.bool.def_noise_suppression);
 
             loadIntegerSetting(stmt, Settings.System.SCREEN_BRIGHTNESS,
                     R.integer.def_screen_brightness);
@@ -2111,6 +2171,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 R.fraction.def_window_animation_scale, 1);
         loadFractionSetting(stmt, Settings.System.TRANSITION_ANIMATION_SCALE,
                 R.fraction.def_window_transition_scale, 1);
+        loadFractionSetting(stmt, Settings.System.ANIMATOR_DURATION_SCALE,
+                R.fraction.def_animator_duration_scale, 1);
     }
 
     private void loadDefaultHapticSettings(SQLiteStatement stmt) {
@@ -2392,6 +2454,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     R.integer.def_wifi_suspend_optimizations_enabled);
 
             // --- New global settings start here
+            loadQuickBootSetting(db);
+
         } finally {
             if (stmt != null) stmt.close();
         }
